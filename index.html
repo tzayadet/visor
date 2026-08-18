@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEXUS::VIEWER — HTML / MD / JS Renderer</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22 fill=%22%2300ff41%22>ﾉ</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+:root{
+  --bg:#050805;
+  --bg-panel:#0a0f0a;
+  --bg-panel-2:#0d130d;
+  --green:#00ff41;
+  --green-dim:#0a7a26;
+  --green-mid:#39ff6a;
+  --green-glow:rgba(0,255,65,.45);
+  --cyan:#00ffc8;
+  --red:#ff3860;
+  --amber:#ffb000;
+  --border:#123018;
+  --text-dim:#5fae74;
+  --font:'JetBrains Mono',monospace;
+  --radius:2px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{
+  background:var(--bg);
+  color:var(--green);
+  font-family:var(--font);
+  overflow:hidden;
+  position:relative;
+}
+
+/* ===== MATRIX RAIN ===== */
+#rain{position:fixed;inset:0;z-index:0;opacity:.16;pointer-events:none;}
+
+/* ===== BOOT SEQUENCE ===== */
+#boot{
+  position:fixed;inset:0;z-index:999;background:var(--bg);
+  color:var(--green);font-size:13px;line-height:1.6;
+  padding:40px;white-space:pre-wrap;
+  display:flex;align-items:center;justify-content:center;
+}
+#boot pre{max-width:640px;width:100%;}
+#boot .cursor{display:inline-block;width:8px;height:14px;background:var(--green);
+  animation:blink 1s step-end infinite;vertical-align:middle;}
+@keyframes blink{50%{opacity:0;}}
+.hidden{display:none!important;}
+
+/* ===== APP SHELL ===== */
+#app{
+  position:relative;z-index:1;height:100vh;display:flex;flex-direction:column;
+  opacity:0;transition:opacity .5s ease;
+}
+#app.show{opacity:1;}
+
+/* ===== HEADER ===== */
+header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 18px;border-bottom:1px solid var(--border);
+  background:linear-gradient(180deg,var(--bg-panel),var(--bg));
+  flex-wrap:wrap;gap:10px;
+}
+.brand{display:flex;align-items:center;gap:10px;}
+.brand .logo{
+  font-weight:800;font-size:18px;letter-spacing:2px;color:var(--green);
+  text-shadow:0 0 8px var(--green-glow);
+}
+.brand .logo span{color:var(--cyan);}
+.brand .tag{font-size:10px;color:var(--text-dim);letter-spacing:3px;text-transform:uppercase;}
+
+.tabs{display:flex;gap:4px;background:var(--bg-panel);border:1px solid var(--border);border-radius:var(--radius);padding:3px;}
+.tab{
+  padding:7px 16px;font-family:var(--font);font-size:12px;letter-spacing:1px;
+  background:transparent;color:var(--text-dim);border:none;cursor:pointer;
+  border-radius:var(--radius);transition:.15s;text-transform:uppercase;font-weight:700;
+}
+.tab:hover{color:var(--green-mid);}
+.tab.active{background:var(--green-dim);color:#03150a;background:var(--green);text-shadow:none;box-shadow:0 0 12px var(--green-glow);}
+
+.actions{display:flex;gap:6px;align-items:center;}
+.btn{
+  font-family:var(--font);font-size:11px;font-weight:700;letter-spacing:1px;
+  padding:8px 14px;background:var(--bg-panel-2);color:var(--green);
+  border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;
+  text-transform:uppercase;transition:.15s;display:flex;align-items:center;gap:6px;
+}
+.btn:hover{border-color:var(--green);box-shadow:0 0 10px var(--green-glow);color:var(--green-mid);}
+.btn.primary{background:var(--green);color:#03150a;border-color:var(--green);}
+.btn.primary:hover{box-shadow:0 0 16px var(--green-glow);}
+.btn.danger:hover{border-color:var(--red);color:var(--red);box-shadow:0 0 10px rgba(255,56,96,.4);}
+.btn kbd{font-size:9px;opacity:.7;background:rgba(0,0,0,.3);padding:1px 4px;border-radius:2px;}
+input[type=file]{display:none;}
+
+/* ===== MAIN LAYOUT ===== */
+main{flex:1;display:flex;overflow:hidden;}
+.pane{flex:1;display:flex;flex-direction:column;min-width:0;}
+.divider{width:1px;background:var(--border);position:relative;cursor:col-resize;flex-shrink:0;}
+.divider:hover{background:var(--green-dim);}
+.pane-header{
+  padding:6px 14px;font-size:10px;letter-spacing:2px;text-transform:uppercase;
+  color:var(--text-dim);border-bottom:1px solid var(--border);background:var(--bg-panel);
+  display:flex;justify-content:space-between;align-items:center;
+}
+.pane-header .dot{width:6px;height:6px;border-radius:50%;background:var(--green-dim);display:inline-block;margin-right:6px;}
+.pane-header .dot.live{background:var(--green);box-shadow:0 0 6px var(--green);}
+
+/* ===== EDITOR ===== */
+.editor-wrap{flex:1;display:flex;overflow:hidden;position:relative;background:var(--bg-panel-2);}
+.gutter{
+  width:44px;flex-shrink:0;background:var(--bg-panel);color:var(--green-dim);
+  font-size:12px;line-height:20px;text-align:right;padding:12px 8px 12px 0;
+  overflow:hidden;user-select:none;border-right:1px solid var(--border);
+}
+textarea{
+  flex:1;resize:none;border:none;outline:none;background:transparent;
+  color:var(--green-mid);font-family:var(--font);font-size:13px;line-height:20px;
+  padding:12px 16px;caret-color:var(--cyan);tab-size:2;
+}
+textarea::selection{background:var(--green-dim);color:#000;}
+
+/* ===== PREVIEW ===== */
+.preview-wrap{flex:1;overflow:auto;background:#fff;position:relative;}
+iframe{width:100%;height:100%;border:none;background:#fff;}
+.md-render{padding:28px 34px;background:var(--bg-panel-2);color:#d6ffe0;height:100%;overflow:auto;line-height:1.7;font-family:var(--font);}
+.md-render h1,.md-render h2,.md-render h3{color:var(--green);border-bottom:1px solid var(--border);padding-bottom:6px;margin:18px 0 10px;text-shadow:0 0 6px var(--green-glow);}
+.md-render h1{font-size:24px;}
+.md-render h2{font-size:19px;}
+.md-render h3{font-size:15px;}
+.md-render p{margin:10px 0;}
+.md-render code{background:#08120a;color:var(--cyan);padding:2px 6px;border-radius:2px;font-size:12px;}
+.md-render pre{background:#08120a;border:1px solid var(--border);padding:14px;overflow:auto;border-radius:var(--radius);margin:12px 0;}
+.md-render pre code{background:none;padding:0;}
+.md-render blockquote{border-left:3px solid var(--green-dim);padding-left:14px;color:var(--text-dim);margin:10px 0;}
+.md-render a{color:var(--cyan);}
+.md-render table{border-collapse:collapse;margin:12px 0;width:100%;}
+.md-render th,.md-render td{border:1px solid var(--border);padding:6px 10px;font-size:13px;}
+.md-render th{background:#08120a;color:var(--green);}
+.md-render ul,.md-render ol{margin:8px 0 8px 22px;}
+.md-render hr{border:none;border-top:1px solid var(--border);margin:16px 0;}
+.md-render img{max-width:100%;}
+
+/* ===== JS CONSOLE ===== */
+.console-wrap{flex:1;overflow-y:auto;background:#050805;padding:10px 14px;font-size:12.5px;line-height:1.7;}
+.console-line{border-bottom:1px dashed rgba(0,255,65,.08);padding:4px 0;display:flex;gap:8px;}
+.console-line .ts{color:var(--green-dim);flex-shrink:0;}
+.console-line.log{color:var(--green-mid);}
+.console-line.error{color:var(--red);}
+.console-line.warn{color:var(--amber);}
+.console-line.info{color:var(--cyan);}
+.console-empty{color:var(--text-dim);font-style:italic;}
+
+/* ===== STATUS BAR ===== */
+footer{
+  padding:6px 16px;border-top:1px solid var(--border);background:var(--bg-panel);
+  display:flex;justify-content:space-between;font-size:10.5px;color:var(--text-dim);
+  letter-spacing:.5px;flex-wrap:wrap;gap:6px;
+}
+footer .seg{display:flex;gap:16px;}
+footer .seg b{color:var(--green);}
+.blinker{animation:blink 1.4s step-end infinite;color:var(--green);}
+
+/* ===== DRAG OVERLAY ===== */
+#dragOverlay{
+  position:fixed;inset:0;z-index:500;background:rgba(0,20,8,.85);
+  display:none;align-items:center;justify-content:center;
+  border:2px dashed var(--green);font-size:20px;letter-spacing:3px;
+  text-transform:uppercase;color:var(--green);text-shadow:0 0 10px var(--green-glow);
+}
+#dragOverlay.active{display:flex;}
+
+/* scrollbars */
+::-webkit-scrollbar{width:10px;height:10px;}
+::-webkit-scrollbar-track{background:var(--bg-panel);}
+::-webkit-scrollbar-thumb{background:var(--green-dim);border-radius:4px;}
+::-webkit-scrollbar-thumb:hover{background:var(--green);}
+
+@media (max-width:820px){
+  main{flex-direction:column;}
+  .divider{width:100%;height:1px;cursor:row-resize;}
+  header{flex-direction:column;align-items:flex-start;}
+}
+</style>
+</head>
+<body>
+
+<canvas id="rain"></canvas>
+
+<div id="boot">
+<pre id="bootText"></pre>
+</div>
+
+<div id="dragOverlay">// SOLTAR ARCHIVO PARA CARGAR //</div>
+
+<div id="app">
+  <header>
+    <div class="brand">
+      <div class="logo">NEXUS<span>::</span>VIEWER</div>
+      <div class="tag">html · markdown · js renderer</div>
+    </div>
+
+    <div class="tabs" id="tabs">
+      <button class="tab active" data-mode="html">HTML</button>
+      <button class="tab" data-mode="md">MARKDOWN</button>
+      <button class="tab" data-mode="js">JAVASCRIPT</button>
+    </div>
+
+    <div class="actions">
+      <button class="btn" id="btnLoad">⇪ CARGAR<input type="file" id="fileInput" accept=".html,.htm,.md,.markdown,.js"></button>
+      <button class="btn" id="btnSave">⇩ EXPORTAR</button>
+      <button class="btn danger" id="btnClear">✕ LIMPIAR</button>
+      <button class="btn primary" id="btnRun">▶ EJECUTAR <kbd>Ctrl+↵</kbd></button>
+    </div>
+  </header>
+
+  <main>
+    <div class="pane" id="editorPane">
+      <div class="pane-header">
+        <span><span class="dot" id="editDot"></span>SOURCE // <span id="editModeLabel">index.html</span></span>
+        <span id="editStats">0 líneas · 0 chars</span>
+      </div>
+      <div class="editor-wrap">
+        <div class="gutter" id="gutter">1</div>
+        <textarea id="code" spellcheck="false"></textarea>
+      </div>
+    </div>
+
+    <div class="divider" id="divider"></div>
+
+    <div class="pane" id="previewPane">
+      <div class="pane-header">
+        <span><span class="dot live" id="previewDot"></span>OUTPUT // <span id="previewModeLabel">render</span></span>
+        <span id="execTime">listo</span>
+      </div>
+      <div class="preview-wrap" id="previewWrap">
+        <iframe id="previewFrame" sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"></iframe>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <div class="seg">
+      <span>MODO: <b id="statMode">HTML</b></span>
+      <span>ESTADO: <b id="statState">EN_ESPERA</b></span>
+      <span>AUTO-RENDER: <b id="statAuto">ON</b></span>
+    </div>
+    <div class="seg">
+      <span id="clock">00:00:00</span>
+      <span class="blinker">●</span>
+      <span>NEXUS::VIEWER v1.0</span>
+    </div>
+  </footer>
+</div>
+
+<script>
+/* ============================================================
+   BOOT SEQUENCE
+   ============================================================ */
+const bootLines = [
+"[ NEXUS::VIEWER — SISTEMA DE RENDERIZADO ]",
+"",
+"> inicializando kernel de visualización.......... OK",
+"> montando buffers HTML / MD / JS................ OK",
+"> cargando parser markdown........................ OK",
+"> sandbox de ejecución JS......................... OK",
+"> estableciendo enlace neuronal................... OK",
+"",
+"> ACCESO CONCEDIDO_"
+];
+const bootEl = document.getElementById('bootText');
+let bl = 0, bc = 0;
+function typeBoot(){
+  if(bl >= bootLines.length){
+    setTimeout(()=>{
+      document.getElementById('boot').classList.add('hidden');
+      document.getElementById('app').classList.add('show');
+    }, 350);
+    return;
+  }
+  const line = bootLines[bl];
+  bootEl.textContent += line[bc] || '';
+  bc++;
+  if(bc > line.length){
+    bootEl.textContent += '\n';
+    bl++; bc = 0;
+    setTimeout(typeBoot, line.length ? 60 : 40);
+  } else {
+    setTimeout(typeBoot, 10 + Math.random()*18);
+  }
+}
+typeBoot();
+
+/* ============================================================
+   MATRIX RAIN BACKGROUND
+   ============================================================ */
+const canvas = document.getElementById('rain');
+const ctx = canvas.getContext('2d');
+let w,h,cols,drops;
+const glyphs = "アイウエオカキクケコサシスセソタチツテトナニヌネノ0123456789";
+function resize(){
+  w = canvas.width = window.innerWidth;
+  h = canvas.height = window.innerHeight;
+  cols = Math.floor(w/16);
+  drops = new Array(cols).fill(1);
+}
+resize();
+window.addEventListener('resize', resize);
+function drawRain(){
+  ctx.fillStyle = 'rgba(5,8,5,0.08)';
+  ctx.fillRect(0,0,w,h);
+  ctx.fillStyle = '#00ff41';
+  ctx.font = '14px monospace';
+  for(let i=0;i<drops.length;i++){
+    const text = glyphs[Math.floor(Math.random()*glyphs.length)];
+    ctx.fillText(text, i*16, drops[i]*16);
+    if(drops[i]*16 > h && Math.random() > 0.975) drops[i] = 0;
+    drops[i]++;
+  }
+}
+setInterval(drawRain, 55);
+
+/* ============================================================
+   CLOCK
+   ============================================================ */
+function tickClock(){
+  document.getElementById('clock').textContent = new Date().toLocaleTimeString('es-ES');
+}
+tickClock(); setInterval(tickClock, 1000);
+
+/* ============================================================
+   STATE
+   ============================================================ */
+const DEFAULTS = {
+html: `<!DOCTYPE html>
+<html>
+<head>
+<style>
+  body{background:#050805;color:#00ff41;font-family:monospace;
+       display:flex;align-items:center;justify-content:center;height:100vh;margin:0;}
+  h1{text-shadow:0 0 10px #00ff41;letter-spacing:4px;}
+</style>
+</head>
+<body>
+  <h1>HELLO_WORLD.EXE</h1>
+</body>
+</html>`,
+md: `# NEXUS::VIEWER
+
+Bienvenido al **visualizador Markdown**.
+
+- Soporta \`código\`, listas, tablas y citas
+- Renderizado en vivo
+- Estética terminal
+
+> "El código es poesía disfrazada de lógica."
+
+\`\`\`js
+console.log("system online");
+\`\`\`
+
+| Módulo | Estado |
+|---|---|
+| Parser MD | ✅ |
+| Sandbox JS | ✅ |
+| Render HTML | ✅ |
+`,
+js: `// Consola de ejecución sandboxed
+console.log("Iniciando secuencia...");
+console.info("Sistema operativo: NEXUS_OS");
+
+for(let i=1;i<=3;i++){
+  console.log("Ciclo", i, "->", i*i);
+}
+
+try{
+  JSON.parse("{invalido}");
+}catch(e){
+  console.error("Error capturado:", e.message);
+}
+
+console.warn("Ejecución completada con advertencias controladas.");
+`
+};
+
+const buffers = { html: DEFAULTS.html, md: DEFAULTS.md, js: DEFAULTS.js };
+let mode = 'html';
+let autoRender = true;
+let renderTimer = null;
+
+const codeEl = document.getElementById('code');
+const gutterEl = document.getElementById('gutter');
+const previewFrame = document.getElementById('previewFrame');
+const previewWrap = document.getElementById('previewWrap');
+
+function labelFor(m){
+  return m === 'html' ? 'index.html' : m === 'md' ? 'README.md' : 'script.js';
+}
+
+function switchMode(m){
+  buffers[mode] = codeEl.value;
+  mode = m;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active', t.dataset.mode===m));
+  codeEl.value = buffers[m];
+  document.getElementById('editModeLabel').textContent = labelFor(m);
+  document.getElementById('statMode').textContent = m.toUpperCase();
+  updateGutter();
+  updateStats();
+  render();
+}
+
+function updateGutter(){
+  const lines = codeEl.value.split('\n').length;
+  let out = '';
+  for(let i=1;i<=lines;i++) out += i+'\n';
+  gutterEl.textContent = out;
+}
+
+function updateStats(){
+  const v = codeEl.value;
+  const lines = v.split('\n').length;
+  document.getElementById('editStats').textContent = `${lines} líneas · ${v.length} chars`;
+}
+
+codeEl.addEventListener('scroll', ()=>{ gutterEl.scrollTop = codeEl.scrollTop; });
+codeEl.addEventListener('input', ()=>{
+  updateGutter();
+  updateStats();
+  buffers[mode] = codeEl.value;
+  if(autoRender){
+    clearTimeout(renderTimer);
+    renderTimer = setTimeout(render, 400);
+  }
+});
+codeEl.addEventListener('keydown', (e)=>{
+  if(e.key === 'Tab'){
+    e.preventDefault();
+    const start = codeEl.selectionStart, end = codeEl.selectionEnd;
+    codeEl.value = codeEl.value.slice(0,start) + '  ' + codeEl.value.slice(end);
+    codeEl.selectionStart = codeEl.selectionEnd = start+2;
+    codeEl.dispatchEvent(new Event('input'));
+  }
+});
+
+/* ============================================================
+   CONSOLE CAPTURE FOR JS SANDBOX
+   ============================================================ */
+function consoleHTML(logs){
+  if(!logs.length){
+    return '<div class="console-empty">// sin salida — esperando ejecución //</div>';
+  }
+  return logs.map(l=>{
+    const t = new Date().toLocaleTimeString('es-ES');
+    return `<div class="console-line ${l.type}"><span class="ts">[${t}]</span><span>${escapeHtml(l.msg)}</span></div>`;
+  }).join('');
+}
+function escapeHtml(s){
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+/* ============================================================
+   RENDER ENGINE
+   ============================================================ */
+function render(){
+  const start = performance.now();
+  document.getElementById('statState').textContent = 'RENDERIZANDO';
+
+  if(mode === 'html'){
+    document.getElementById('previewModeLabel').textContent = 'render html';
+    previewWrap.innerHTML = '<iframe id="previewFrame" sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"></iframe>';
+    const frame = document.getElementById('previewFrame');
+    const doc = frame.contentWindow.document;
+    doc.open(); doc.write(buffers.html); doc.close();
+  }
+
+  if(mode === 'md'){
+    document.getElementById('previewModeLabel').textContent = 'render markdown';
+    let html = '';
+    try{
+      html = (typeof marked !== 'undefined') ? marked.parse(buffers.md) : '<p>Cargando parser...</p>';
+    }catch(e){
+      html = '<p style="color:#ff3860">Error al parsear Markdown: '+escapeHtml(e.message)+'</p>';
+    }
+    previewWrap.innerHTML = `<div class="md-render">${html}</div>`;
+  }
+
+  if(mode === 'js'){
+    document.getElementById('previewModeLabel').textContent = 'consola de ejecución';
+    previewWrap.innerHTML = `<div class="console-wrap" id="consoleOut"><div class="console-empty">// ejecuta el código para ver la salida //</div></div>`;
+  }
+
+  const elapsed = (performance.now()-start).toFixed(1);
+  document.getElementById('execTime').textContent = `render: ${elapsed}ms`;
+  document.getElementById('statState').textContent = 'EN_ESPERA';
+}
+
+function executeJS(){
+  const logs = [];
+  const sandboxConsole = {
+    log:(...a)=>logs.push({type:'log', msg:a.map(fmt).join(' ')}),
+    info:(...a)=>logs.push({type:'info', msg:a.map(fmt).join(' ')}),
+    warn:(...a)=>logs.push({type:'warn', msg:a.map(fmt).join(' ')}),
+    error:(...a)=>logs.push({type:'error', msg:a.map(fmt).join(' ')}),
+  };
+  function fmt(x){
+    if(typeof x === 'object'){
+      try{ return JSON.stringify(x); }catch(e){ return String(x); }
+    }
+    return String(x);
+  }
+  const start = performance.now();
+  try{
+    const fn = new Function('console', buffers.js);
+    fn(sandboxConsole);
+  }catch(e){
+    logs.push({type:'error', msg: e.name+': '+e.message});
+  }
+  const elapsed = (performance.now()-start).toFixed(2);
+  const out = document.getElementById('consoleOut');
+  if(out) out.innerHTML = consoleHTML(logs);
+  document.getElementById('execTime').textContent = `ejecutado en ${elapsed}ms · ${logs.length} eventos`;
+}
+
+/* ============================================================
+   RUN BUTTON
+   ============================================================ */
+document.getElementById('btnRun').addEventListener('click', ()=>{
+  buffers[mode] = codeEl.value;
+  if(mode === 'js'){
+    render();
+    executeJS();
+  } else {
+    render();
+  }
+});
+document.addEventListener('keydown', (e)=>{
+  if((e.ctrlKey||e.metaKey) && e.key === 'Enter'){
+    e.preventDefault();
+    document.getElementById('btnRun').click();
+  }
+});
+
+/* ============================================================
+   TABS
+   ============================================================ */
+document.getElementById('tabs').addEventListener('click', (e)=>{
+  const btn = e.target.closest('.tab');
+  if(!btn) return;
+  switchMode(btn.dataset.mode);
+});
+
+/* ============================================================
+   CLEAR / SAVE / LOAD
+   ============================================================ */
+document.getElementById('btnClear').addEventListener('click', ()=>{
+  buffers[mode] = '';
+  codeEl.value = '';
+  updateGutter(); updateStats(); render();
+});
+
+document.getElementById('btnSave').addEventListener('click', ()=>{
+  buffers[mode] = codeEl.value;
+  const ext = mode === 'html' ? 'html' : mode === 'md' ? 'md' : 'js';
+  const blob = new Blob([buffers[mode]], {type:'text/plain'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `output.${ext}`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+document.getElementById('btnLoad').addEventListener('click', ()=>{
+  document.getElementById('fileInput').click();
+});
+document.getElementById('fileInput').addEventListener('change', (e)=>{
+  const file = e.target.files[0];
+  if(file) loadFile(file);
+});
+
+function loadFile(file){
+  const name = file.name.toLowerCase();
+  let target = 'html';
+  if(name.endsWith('.md') || name.endsWith('.markdown')) target = 'md';
+  else if(name.endsWith('.js')) target = 'js';
+  const reader = new FileReader();
+  reader.onload = (ev)=>{
+    buffers[target] = ev.target.result;
+    switchMode(target);
+  };
+  reader.readAsText(file);
+}
+
+/* ============================================================
+   DRAG & DROP
+   ============================================================ */
+const overlay = document.getElementById('dragOverlay');
+['dragenter','dragover'].forEach(evt=>{
+  window.addEventListener(evt, (e)=>{ e.preventDefault(); overlay.classList.add('active'); });
+});
+['dragleave','drop'].forEach(evt=>{
+  window.addEventListener(evt, (e)=>{ e.preventDefault(); if(evt==='drop'||e.target===overlay) overlay.classList.remove('active'); });
+});
+window.addEventListener('drop', (e)=>{
+  e.preventDefault();
+  overlay.classList.remove('active');
+  const file = e.dataTransfer.files[0];
+  if(file) loadFile(file);
+});
+
+/* ============================================================
+   RESIZABLE DIVIDER
+   ============================================================ */
+const divider = document.getElementById('divider');
+const editorPane = document.getElementById('editorPane');
+let dragging = false;
+divider.addEventListener('mousedown', ()=>{ dragging = true; document.body.style.cursor='col-resize'; });
+window.addEventListener('mousemove', (e)=>{
+  if(!dragging) return;
+  const main = document.querySelector('main');
+  const rect = main.getBoundingClientRect();
+  const pct = ((e.clientX - rect.left) / rect.width) * 100;
+  if(pct > 15 && pct < 85){
+    editorPane.style.flex = 'none';
+    editorPane.style.width = pct + '%';
+  }
+});
+window.addEventListener('mouseup', ()=>{ dragging = false; document.body.style.cursor=''; });
+
+/* ============================================================
+   INIT
+   ============================================================ */
+codeEl.value = buffers.html;
+updateGutter();
+updateStats();
+setTimeout(render, 500);
+</script>
+</body>
+</html>
