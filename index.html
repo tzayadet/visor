@@ -237,7 +237,7 @@ footer .seg b{color:var(--green);}
         <span id="execTime">listo</span>
       </div>
       <div class="preview-wrap" id="previewWrap">
-        <iframe id="previewFrame" sandbox="allow-scripts allow-forms allow-modals allow-popups"></iframe>
+        <iframe id="previewFrame" sandbox="allow-scripts allow-forms allow-modals "></iframe>
       </div>
     </div>
   </main>
@@ -470,7 +470,7 @@ function render(){
 
   if(mode === 'html'){
     document.getElementById('previewModeLabel').textContent = 'render html';
-    previewWrap.innerHTML = '<iframe id="previewFrame" sandbox="allow-scripts allow-forms allow-modals allow-popups"></iframe>';
+    previewWrap.innerHTML = '<iframe id="previewFrame" sandbox="allow-scripts allow-forms allow-modals "></iframe>';
     const frame = document.getElementById('previewFrame');
     const doc = frame.contentWindow.document;
     doc.open(); doc.write(buffers.html); doc.close();
