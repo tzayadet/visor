@@ -1,10 +1,15 @@
+<p align="center">
+  <img src="https://img.shields.io/badge/WEB_WORKSPACE-NEXUS_VIEWER-101010?style=for-the-badge&labelColor=050805&color=00FF41" alt="Nexus Viewer"/>
+  <img src="https://img.shields.io/badge/HTML_CSS_JS-BROWSER_IDE-101010?style=for-the-badge&logo=javascript&logoColor=00FF41" alt="JavaScript"/>
+</p>
+
 # Nexus Viewer
 
-A browser-based workspace for editing and previewing HTML, Markdown and JavaScript in a single interface. It combines a code editor, live rendering panel and console-style output.
+Browser-based workspace for editing and previewing HTML, Markdown and JavaScript in one interface. It combines an editor, live rendering panel and console-style output.
 
 <p align="center">
-  <a href="https://tzayadet.github.io/visor/"><img src="https://img.shields.io/badge/LIVE_DEMO-OPEN-00a86b?style=flat-square" alt="Live demo"></a>
-  <a href="https://github.com/tzayadet/visor"><img src="https://img.shields.io/badge/SOURCE-GITHUB-161b22?style=flat-square&logo=github" alt="Source code"></a>
+  <a href="https://tzayadet.github.io/visor/"><strong>LIVE DEMO ↗</strong></a> ·
+  <a href="https://github.com/tzayadet/visor"><strong>SOURCE CODE</strong></a>
 </p>
 
 ## Features
@@ -16,25 +21,30 @@ A browser-based workspace for editing and previewing HTML, Markdown and JavaScri
 - Line and character counters.
 - Responsive interface with a terminal-inspired visual style.
 
-## Run locally
+## Use it
 
-No installation or backend is required for basic use. Clone the repository and open `index.html` in a modern browser.
+Open the [live demo](https://tzayadet.github.io/visor/) or clone the repository and open `index.html` in a modern browser.
 
-The Markdown renderer is loaded from a CDN, so Markdown preview requires an internet connection.
+No installation or backend is required for basic use. The Markdown renderer is loaded from a CDN, so Markdown preview requires an internet connection.
 
-## Project structure
+## Technology
 
-The application is a static browser project built with HTML, CSS and JavaScript. It uses the browser File API and Blob API for local file handling and export.
-
-## Live demo
-
-[Open Nexus Viewer](https://tzayadet.github.io/visor/)
-
-The published version runs entirely in the browser. It does not include a remote backend or server-side storage.
+- HTML5 and CSS3
+- JavaScript
+- Marked.js
+- File API and Blob API
 
 ## Security notes
 
 The application can execute JavaScript entered into its editor. Only run code you trust. Do not paste credentials, access tokens or sensitive information into untrusted scripts or documents.
+
+## Scope
+
+The published version runs entirely in the browser. It does not include a remote backend or server-side storage.
+
+## Deployment
+
+Static website published through GitHub Pages.
 
 ## License
 
