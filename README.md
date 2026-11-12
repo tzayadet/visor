@@ -12,6 +12,8 @@ Browser-based workspace for editing and previewing HTML, Markdown and JavaScript
   <a href="https://github.com/tzayadet/visor"><strong>SOURCE CODE</strong></a>
 </p>
 
+[![Quality checks](https://github.com/tzayadet/visor/actions/workflows/quality.yml/badge.svg)](https://github.com/tzayadet/visor/actions/workflows/quality.yml)
+
 ## Features
 
 - Dedicated editing modes for HTML, Markdown and JavaScript.
@@ -36,11 +38,21 @@ No installation or backend is required for basic use. The Markdown renderer is l
 
 ## Security notes
 
-The application can execute JavaScript entered into its editor. Only run code you trust. Do not paste credentials, access tokens or sensitive information into untrusted scripts or documents.
+The application can execute JavaScript entered into its editor. Preview content runs inside a sandboxed iframe without same-origin or popup permissions. Only run code you trust. Do not paste credentials, access tokens or sensitive information into untrusted scripts or documents.
 
 ## Scope
 
 The published version runs entirely in the browser. It does not include a remote backend or server-side storage.
+
+## Validation
+
+The quality workflow checks inline JavaScript syntax, local asset references, duplicate HTML IDs and preview iframe sandbox permissions:
+
+```bash
+python scripts/validate_site.py
+```
+
+Requires Python 3.11+ and Node.js 22+.
 
 ## Deployment
 
