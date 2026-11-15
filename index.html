@@ -472,8 +472,8 @@ function render(){
     document.getElementById('previewModeLabel').textContent = 'render html';
     previewWrap.innerHTML = '<iframe id="previewFrame" sandbox="allow-scripts allow-forms allow-modals "></iframe>';
     const frame = document.getElementById('previewFrame');
-    const doc = frame.contentWindow.document;
-    doc.open(); doc.write(buffers.html); doc.close();
+    frame.title = 'HTML preview';
+    frame.srcdoc = buffers.html;
   }
 
   if(mode === 'md'){
