@@ -400,8 +400,10 @@ function labelFor(m){
   return m === 'html' ? 'index.html' : m === 'md' ? 'README.md' : 'script.js';
 }
 
-function switchMode(m){
+function switchMode(m, content){
+  clearTimeout(renderTimer);
   buffers[mode] = codeEl.value;
+  if(content !== undefined) buffers[m] = content;
   mode = m;
   document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active', t.dataset.mode===m));
   codeEl.value = buffers[m];
@@ -465,6 +467,7 @@ function escapeHtml(s){
    RENDER ENGINE
    ============================================================ */
 function render(){
+  clearTimeout(renderTimer);
   const start = performance.now();
   document.getElementById('statState').textContent = 'RENDERIZANDO';
 
@@ -489,7 +492,7 @@ function render(){
 
   if(mode === 'js'){
     document.getElementById('previewModeLabel').textContent = 'consola de ejecución';
-    previewWrap.innerHTML = `<div class="console-wrap" id="consoleOut"><div class="console-empty">// ejecuta el código para ver la salida //</div></div>`;
+    executeJS();
   }
 
   const elapsed = (performance.now()-start).toFixed(1);
@@ -497,31 +500,67 @@ function render(){
   document.getElementById('statState').textContent = 'EN_ESPERA';
 }
 
-function executeJS(){
-  const logs = [];
-  const sandboxConsole = {
-    log:(...a)=>logs.push({type:'log', msg:a.map(fmt).join(' ')}),
-    info:(...a)=>logs.push({type:'info', msg:a.map(fmt).join(' ')}),
-    warn:(...a)=>logs.push({type:'warn', msg:a.map(fmt).join(' ')}),
-    error:(...a)=>logs.push({type:'error', msg:a.map(fmt).join(' ')}),
-  };
-  function fmt(x){
-    if(typeof x === 'object'){
-      try{ return JSON.stringify(x); }catch(e){ return String(x); }
+function runJavaScript(source){
+  const output = document.getElementById('jsConsole');
+  let count = 0;
+  function format(value){
+    if(value instanceof Error) return value.name + ': ' + value.message;
+    if(typeof value === 'object' && value !== null){
+      try{ return JSON.stringify(value, null, 2); }catch(e){}
     }
-    return String(x);
+    return String(value);
   }
-  const start = performance.now();
-  try{
-    const fn = new Function('console', buffers.js);
-    fn(sandboxConsole);
-  }catch(e){
-    logs.push({type:'error', msg: e.name+': '+e.message});
+  function write(type, values){
+    if(!output.isConnected) document.body.appendChild(output);
+    if(!count++) output.textContent = '';
+    const line = document.createElement('div');
+    line.className = 'console-line ' + type;
+    const time = document.createElement('span');
+    time.className = 'ts';
+    time.textContent = '[' + new Date().toLocaleTimeString('es-ES') + '] ';
+    const message = document.createElement('span');
+    message.textContent = values.map(format).join(' ');
+    line.append(time, message);
+    output.appendChild(line);
   }
-  const elapsed = (performance.now()-start).toFixed(2);
-  const out = document.getElementById('consoleOut');
-  if(out) out.innerHTML = consoleHTML(logs);
-  document.getElementById('execTime').textContent = `ejecutado en ${elapsed}ms · ${logs.length} eventos`;
+  ['log','info','warn','error','debug'].forEach(type=>{
+    console[type] = (...values)=>write(type, values);
+  });
+  console.clear = ()=>{
+    count = 0;
+    output.textContent = '// consola limpia //';
+  };
+  window.addEventListener('error', event=>{
+    write('error', [event.error || event.message]);
+    event.preventDefault();
+  });
+  window.addEventListener('unhandledrejection', event=>{
+    write('error', ['Promesa rechazada:', event.reason]);
+    event.preventDefault();
+  });
+  const script = document.createElement('script');
+  script.textContent = source;
+  document.body.appendChild(script);
+  script.remove();
+  if(!count) output.textContent = '// ejecutado sin mensajes de consola //';
+}
+
+function executeJS(){
+  const frame = document.createElement('iframe');
+  frame.id = 'previewFrame';
+  frame.title = 'JavaScript: vista previa y consola';
+  frame.setAttribute('sandbox', 'allow-scripts allow-forms allow-modals');
+  previewWrap.replaceChildren(frame);
+  // Escaping '<' keeps user text (including closing script tags) inside the string.
+  const source = JSON.stringify(buffers.js).replace(/</g, '\\u003c');
+  const runner = '(' + runJavaScript.toString() + ')(' + source + ');';
+  frame.srcdoc = '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">' +
+    '<style>body{margin:0;padding:14px;background:#050805;color:#39ff6a;font:13px/1.7 monospace}' +
+    '#jsConsole{white-space:pre-wrap;overflow-wrap:anywhere}' +
+    '.console-line{padding:4px 0;border-bottom:1px dashed #123018}' +
+    '.ts{color:#5fae74}.error{color:#ff3860}.warn{color:#ffb000}.info{color:#00ffc8}' +
+    '</style></head><body><div id="jsConsole">// ejecutando JavaScript… //</div>' +
+    '<script>' + runner + '<' + '/script></body></html>';
 }
 
 /* ============================================================
@@ -529,12 +568,7 @@ function executeJS(){
    ============================================================ */
 document.getElementById('btnRun').addEventListener('click', ()=>{
   buffers[mode] = codeEl.value;
-  if(mode === 'js'){
-    render();
-    executeJS();
-  } else {
-    render();
-  }
+  render();
 });
 document.addEventListener('keydown', (e)=>{
   if((e.ctrlKey||e.metaKey) && e.key === 'Enter'){
@@ -587,8 +621,7 @@ function loadFile(file){
   else if(name.endsWith('.js')) target = 'js';
   const reader = new FileReader();
   reader.onload = (ev)=>{
-    buffers[target] = ev.target.result;
-    switchMode(target);
+    switchMode(target, ev.target.result);
   };
   reader.readAsText(file);
 }
